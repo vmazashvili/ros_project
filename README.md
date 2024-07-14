@@ -8,22 +8,22 @@ This repository contains my ROS project for the Robot Programming class.
 
 	```bash
 	git clone https://github.com/vmazashvili/ros_project.git
-	cd ros_project```
+	cd ros_project
 
 2. Build the workspace:
 	```cd ~/catkin_ws
 	catkin_make
-	source devel/setup.bash```
+	source devel/setup.bash
 
 ## Usage
 
 To run the talker and listener nodes:
 
 1. Open a terminal and run the talker node:
-	```rosrun beginner_tutorials talker```
+	```rosrun beginner_tutorials talker
 
 2. Open another terminal and run the listener node:
-	```rosrun beginner_tutorials listener```
+	```rosrun beginner_tutorials listener
 
 ## Contributing
 
