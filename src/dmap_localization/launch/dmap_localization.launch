@@ -1,6 +1,13 @@
 <launch>
-  <!-- Launch the map server -->
-  <node name="map_server" pkg="map_server" type="map_server" args="$(find dmap_localization)/maps/your_map.yaml">
-    <param name="frame_id" value="map"/>
+  <!-- Stage -->
+  <node pkg="stage_ros" type="stageros" name="stageros" args="$(find dmap_localization)/worlds/myworld.world">
+    <remap from="base_scan" to="scan"/>
   </node>
+  
+  <!-- Launch the dmap_localizer node -->
+  <node name="dmap_localizer" pkg="dmap_localization" type="dmap_localizer" output="screen"/>
+  
+  <!-- Launch RViz with the specified configuration -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find dmap_localization)/config/dmap_localization.rviz" required="true"/>
 </launch>
+
