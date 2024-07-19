@@ -18,6 +18,8 @@ public:
     DMapLocalizer();
 
 private:
+	void checkAndCreateDMAP(const ros::TimerEvent&);
+    ros::Timer dmap_creation_timer_;
     void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
     void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
     void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
