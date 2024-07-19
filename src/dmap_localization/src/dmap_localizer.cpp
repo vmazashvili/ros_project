@@ -2,6 +2,9 @@
 #include <pcl/registration/icp.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <pcl/conversions.h>
+
 //#include <opencv2/opencv.hpp>
 
 /*
@@ -27,6 +30,9 @@ DMapLocalizer::DMapLocalizer()
 
     localized_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("localized_pose", 1);
 	dmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("dmap", 1, true);  // The 'true' makes it a latched topic
+    scan_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("scan_cloud", 1);
+    dmap_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("dmap_cloud", 1, true); 
+
     dmap_cloud_.reset(new pcl::PointCloud<pcl::PointXYZ>);
     scan_cloud_.reset(new pcl::PointCloud<pcl::PointXYZ>);
 }
@@ -76,6 +82,14 @@ void DMapLocalizer::checkAndCreateDMAP(const ros::TimerEvent&)
 		dmap_creation_timer_.stop();
 		ROS_INFO("DMAP created!"); //runs
 	}
+
+    sensor_msgs::PointCloud2 dmap_cloud_msg;
+    pcl::toROSMsg(*dmap_cloud_, dmap_cloud_msg);
+    dmap_cloud_msg.header.frame_id = map_frame_id_; // Set the correct frame_id
+    dmap_cloud_msg.header.stamp = ros::Time::now();
+    
+    // Publish the PointCloud2 message
+    dmap_cloud_pub_.publish(dmap_cloud_msg);
 }
 
 
@@ -146,23 +160,57 @@ void DMapLocalizer::createDMAP()
 
 void DMapLocalizer::createDMAPPointCloud()
 {
-	ROS_INFO("Generating DMAP point cloud ..."); // runs
+    ROS_INFO("Translating DMAP to point cloud with gradient density...");
     dmap_cloud_->clear();
-    for (size_t y = 0; y < dmap_.size(); ++y) {
-        for (size_t x = 0; x < dmap_[y].size(); ++x) {
-            if (dmap_[y][x] < dmap_threshold_) {
-                pcl::PointXYZ point;
-                point.x = x * map_resolution_ + map_origin_.x;
-                point.y = y * map_resolution_ + map_origin_.y;
-                point.z = 0;
-                dmap_cloud_->push_back(point);
+
+    int min_points = 1; // Minimum number of points in free space
+    int max_points = 10; // Maximum number of points near obstacles
+
+    float max_distance = 0.0;
+    for (const auto& row : dmap_) {
+        for (const auto& cell : row) {
+            if (cell != std::numeric_limits<float>::max()) {
+                max_distance = std::max(max_distance, cell);
             }
         }
     }
+
+    for (size_t y = 0; y < dmap_.size(); ++y) {
+        for (size_t x = 0; x < dmap_[y].size(); ++x) {
+            float distance = dmap_[y][x];
+            if (distance != std::numeric_limits<float>::max()) {
+                // Determine number of points based on distance (closer = more points)
+                int num_points = static_cast<int>(max_points * (1.0 - (distance / max_distance)));
+                num_points = std::max(min_points, num_points); // Ensure at least min_points
+                
+                for (int i = 0; i < num_points; ++i) {
+                    pcl::PointXYZ point;
+                    point.x = x * map_resolution_ + map_origin_.x;
+                    point.y = y * map_resolution_ + map_origin_.y;
+                    point.z = 0;
+
+                    // Optional: Add a small random offset to create a gradient effect
+                    float offset_x = (static_cast<float>(rand()) / RAND_MAX - 0.5f) * map_resolution_;
+                    float offset_y = (static_cast<float>(rand()) / RAND_MAX - 0.5f) * map_resolution_;
+
+                    point.x += offset_x;
+                    point.y += offset_y;
+
+                    dmap_cloud_->push_back(point);
+                }
+            }
+        }
+    }
+
     dmap_cloud_->width = dmap_cloud_->points.size();
     dmap_cloud_->height = 1;
     dmap_cloud_->is_dense = true;
+    ROS_INFO("Generated DMAP cloud with %ld points", dmap_cloud_->points.size());
 }
+
+
+
+
 
 /*
 - Processes the incoming laser scan data
@@ -199,6 +247,16 @@ void DMapLocalizer::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
     scan_cloud_->height = 1;
     scan_cloud_->is_dense = true;
 
+    // Convert to PointCloud2
+    sensor_msgs::PointCloud2 scan_cloud_msg;
+    pcl::toROSMsg(*scan_cloud_, scan_cloud_msg);
+    scan_cloud_msg.header.frame_id = "base_link"; // Adjust this frame_id to match your setup
+    scan_cloud_msg.header.stamp = ros::Time::now();
+
+    // Publish the PointCloud2 message
+    scan_cloud_pub_.publish(scan_cloud_msg);
+
+
     //ROS_INFO("Created scan cloud with %ld points", scan_cloud_->points.size());
 
     if (!dmap_cloud_->empty()) {
@@ -218,6 +276,7 @@ void DMapLocalizer::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
     current_odom_ = *msg;
 }
 
+// I dont think I need this function anymore. performLocalization() sets initial pose by itself
 void DMapLocalizer::initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
 {
     initial_pose_ = msg->pose.pose;
@@ -250,6 +309,11 @@ void DMapLocalizer::performLocalization()
     icp.setInputSource(scan_cloud_);
     icp.setInputTarget(dmap_cloud_);
 
+    // icp.setMaxCorrespondenceDistance(1);  // Adjust as needed
+    // icp.setTransformationEpsilon(1e-9);     // Adjust as needed
+    // icp.setMaximumIterations(100);           // Adjust as needed
+
+
     Eigen::Matrix4f initial_guess = Eigen::Matrix4f::Identity();
     initial_guess(0, 3) = current_odom_.pose.pose.position.x;
     initial_guess(1, 3) = current_odom_.pose.pose.position.y;
@@ -258,6 +322,9 @@ void DMapLocalizer::performLocalization()
     icp.align(aligned_cloud, initial_guess);
 
     if (icp.hasConverged()) {
+        double fitness_score = icp.getFitnessScore();
+        ROS_INFO("ICP converged with score: %.4f", fitness_score);
+
         Eigen::Matrix4f transformation = icp.getFinalTransformation();
 
         geometry_msgs::PoseStamped localized_pose;
@@ -285,12 +352,20 @@ void DMapLocalizer::performLocalization()
     }
 }
 
+const double MIN_POSE_CHANGE = 0.05;
+const double MIN_ORIENTATION_CHANGE = 0.05; // For checking orientation changes
+
 bool DMapLocalizer::poseChanged(const geometry_msgs::Pose& new_pose)
 {
     double dx = new_pose.position.x - last_published_pose_.position.x;
     double dy = new_pose.position.y - last_published_pose_.position.y;
-    return (dx*dx + dy*dy) > (MIN_POSE_CHANGE * MIN_POSE_CHANGE);
+    double d_position = sqrt(dx*dx + dy*dy);
+    
+    double dq = std::fabs(new_pose.orientation.z - last_published_pose_.orientation.z); // Adjust if using full quaternion
+
+    return (d_position > MIN_POSE_CHANGE || dq > MIN_ORIENTATION_CHANGE);
 }
+
 
 /*
 - Broadcasts the transfrom from the "map" frame to the "base_link" frame,

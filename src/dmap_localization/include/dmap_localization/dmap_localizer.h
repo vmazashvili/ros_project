@@ -34,6 +34,8 @@ private:
     void performLocalization();
     void broadcastTransform(const geometry_msgs::PoseStamped& pose);
 
+    ros::Publisher dmap_cloud_pub_;
+    ros::Publisher scan_cloud_pub_;
     ros::NodeHandle nh_;
     ros::Subscriber map_sub_;
     ros::Subscriber scan_sub_;
