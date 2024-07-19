@@ -5,6 +5,8 @@
 #include <limits>
 #include <pcl/point_cloud.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/point_types.h>
+#include <pcl/common/common.h>
 #include <visualization_msgs/Marker.h>
 #include <tf2/utils.h>
 
@@ -22,7 +24,7 @@ void DMAPLocalizer::initializeROS() {
     map_sub_ = nh_.subscribe("/map", 1, &DMAPLocalizer::mapCallback, this);
     scan_sub_ = nh_.subscribe("/scan", 1, &DMAPLocalizer::scanCallback, this);
     initial_pose_sub_ = nh_.subscribe("/initialpose", 1, &DMAPLocalizer::initialPoseCallback, this);
-    step_icp_sub_ = nh_.subscribe("/step_icp", 1, &DMAPLocalizer::stepICP, this);
+    //step_icp_sub_ = nh_.subscribe("/step_icp", 1, &DMAPLocalizer::stepICP, this);
     
     localized_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("localized_pose", 1, this);
     dmap_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("dmap_cloud", 1, this);
@@ -34,7 +36,9 @@ void DMAPLocalizer::initializeROS() {
     nh_.param("dmap_threshold", dmap_threshold_, 0.8);
     nh_.param("icp_max_iterations", icp_max_iterations_, 50);
     nh_.param("icp_transformation_epsilon", icp_transformation_epsilon_, 1e-8);
-    nh_.param("icp_max_correspondence_distance", icp_max_correspondence_distance_, 0.1);
+    nh_.param("icp_max_correspondence_distance", icp_max_correspondence_distance_, 1.0);
+    icp_timer_ = nh_.createTimer(ros::Duration(1.0), &DMAPLocalizer::stepICP, this);
+    icp_timer_.stop();  // Initially stop the timer
 }
 
 void DMAPLocalizer::initializePCL() {
@@ -49,6 +53,7 @@ void DMAPLocalizer::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
     createMapCloud();
     createDMAP();
     publishDMAPCloud();
+    icp_timer_.start();  // Start the timer after creating DMAP
 }
 
 void DMAPLocalizer::createMapCloud() {
@@ -179,16 +184,24 @@ void DMAPLocalizer::manualScanProcessing() {
         return;
     }
 
-    ROS_INFO("Processing manual scan at defined pose");
+    ROS_INFO("Processing manual scan at defined pose: x=%.3f, y=%.3f, yaw=%.3f",
+             initial_pose_.position.x, initial_pose_.position.y, tf2::getYaw(initial_pose_.orientation));
 
-    // Create a laser scan message based on the current pose and map
     sensor_msgs::LaserScan manual_scan = createManualLaserScan(initial_pose_);
-
-    // Create a ConstPtr from the manual_scan
     sensor_msgs::LaserScan::ConstPtr scan_ptr = boost::make_shared<sensor_msgs::LaserScan>(manual_scan);
-
-    // Call the conversion function with the ConstPtr
     convertScanToPointCloud(scan_ptr);
+
+    if (scan_cloud_->empty()) {
+        ROS_WARN("Generated scan cloud is empty. Check createManualLaserScan and convertScanToPointCloud functions.");
+    } else {
+        ROS_INFO("Generated scan cloud with %lu points", scan_cloud_->size());
+        
+        // Add this debug information
+        pcl::PointXYZ min_pt, max_pt;
+        pcl::getMinMax3D(*scan_cloud_, min_pt, max_pt);
+        ROS_INFO("Scan cloud bounds: X[%.2f, %.2f], Y[%.2f, %.2f], Z[%.2f, %.2f]",
+                 min_pt.x, max_pt.x, min_pt.y, max_pt.y, min_pt.z, max_pt.z);
+    }
 
     publishScanCloud();
 }
@@ -245,18 +258,18 @@ void DMAPLocalizer::publishScanCloud() {
 void DMAPLocalizer::initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg) {
     initial_pose_ = msg->pose.pose;
     current_pose_ = initial_pose_;
-    ROS_INFO("Initial pose set");
+    ROS_INFO("Initial pose set: x=%.3f, y=%.3f, yaw=%.3f", 
+             current_pose_.position.x, 
+             current_pose_.position.y, 
+             tf2::getYaw(current_pose_.orientation));
 
-    // Generate a synthetic scan
-    sensor_msgs::LaserScan synthetic_scan = createManualLaserScan(initial_pose_);
-    
-    // Convert the synthetic scan to a point cloud
-    sensor_msgs::LaserScan::ConstPtr scan_ptr = boost::make_shared<sensor_msgs::LaserScan>(synthetic_scan);
-    convertScanToPointCloud(scan_ptr);
-    
-    publishScanCloud();
+    manualScanProcessing();
     performLocalization();
-}
+    
+    // Reset the timer to start ICP steps
+    icp_timer_.stop();
+    icp_timer_.start();
+}   
 
 void DMAPLocalizer::visualizeCurrentPose() {
     visualization_msgs::Marker marker;
@@ -274,23 +287,22 @@ void DMAPLocalizer::visualizeCurrentPose() {
     marker.color.g = 0.0;
     marker.color.b = 0.0;
     marker.color.a = 1.0;
-    marker.lifetime = ros::Duration();
+    marker.lifetime = ros::Duration(0.1);  // Short lifetime to ensure frequent updates
 
     pose_marker_pub_.publish(marker);
 }
 
-void DMAPLocalizer::stepICP(const std_msgs::Empty::ConstPtr& msg) {
+void DMAPLocalizer::stepICP(const ros::TimerEvent& event) {
     if (dmap_cloud_->empty() || scan_cloud_->empty()) {
-        ROS_WARN("Empty DMAP or scan cloud, skipping ICP step");
+        ROS_WARN_THROTTLE(5, "Empty DMAP or scan cloud, skipping ICP step");
         return;
     }
 
     pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
     icp.setInputSource(scan_cloud_);
     icp.setInputTarget(dmap_cloud_);
-    icp.setMaximumIterations(1);  // Only one iteration per step
+    icp.setMaximumIterations(icp_max_iterations_);
     icp.setTransformationEpsilon(icp_transformation_epsilon_);
-    icp.setMaxCorrespondenceDistance(icp_max_correspondence_distance_);
 
     Eigen::Matrix4f initial_guess = Eigen::Matrix4f::Identity();
     initial_guess.block<3,3>(0,0) = Eigen::Quaternionf(current_pose_.orientation.w, 
@@ -302,18 +314,35 @@ void DMAPLocalizer::stepICP(const std_msgs::Empty::ConstPtr& msg) {
                                                     current_pose_.position.z);
 
     pcl::PointCloud<pcl::PointXYZ> aligned_cloud;
-    icp.align(aligned_cloud, initial_guess);
+    bool converged = false;
+    double current_max_distance = icp_max_correspondence_distance_;
 
-    if (icp.hasConverged()) {
-        Eigen::Matrix4f transformation = icp.getFinalTransformation();
-        updatePose(transformation);
-        publishPose();
-        broadcastTransform();
+    for (int attempt = 0; attempt < 3 && !converged; ++attempt) {
+        icp.setMaxCorrespondenceDistance(current_max_distance);
+        icp.align(aligned_cloud, initial_guess);
 
-        double fitness_score = icp.getFitnessScore();
-        ROS_INFO("ICP step converged with score: %.4f", fitness_score);
-    } else {
-        ROS_WARN("ICP step did not converge");
+        if (icp.hasConverged()) {
+            converged = true;
+            Eigen::Matrix4f transformation = icp.getFinalTransformation();
+            updatePose(transformation);
+            publishPose();
+            visualizeCurrentPose();
+            publishScanCloud();
+
+            double fitness_score = icp.getFitnessScore();
+            ROS_INFO("ICP converged with score: %.4f (max distance: %.2f)", fitness_score, current_max_distance);
+            ROS_INFO("Current pose: x=%.3f, y=%.3f, yaw=%.3f", 
+                     current_pose_.position.x, 
+                     current_pose_.position.y, 
+                     tf2::getYaw(current_pose_.orientation));
+        } else {
+            current_max_distance *= 1.5;  // Increase max distance for next attempt
+            ROS_WARN("ICP did not converge, increasing max distance to %.2f", current_max_distance);
+        }
+    }
+
+    if (!converged) {
+        ROS_ERROR("ICP failed to converge after multiple attempts");
     }
 }
 
@@ -326,7 +355,7 @@ void DMAPLocalizer::performLocalization() {
     current_pose_ = initial_pose_;
     
     publishPose();
-    broadcastTransform();
+    //broadcastTransform();
 
     ROS_INFO("Localization initialized. Use the 'step_icp' topic to perform ICP steps.");
 }
@@ -353,17 +382,17 @@ void DMAPLocalizer::publishPose() {
     localized_pose_pub_.publish(pose_msg);
 }
 
-void DMAPLocalizer::broadcastTransform() {
-    geometry_msgs::TransformStamped transform_stamped;
-    transform_stamped.header.stamp = ros::Time::now();
-    transform_stamped.header.frame_id = map_.header.frame_id;
-    transform_stamped.child_frame_id = "map";
-    transform_stamped.transform.translation.x = current_pose_.position.x;
-    transform_stamped.transform.translation.y = current_pose_.position.y;
-    transform_stamped.transform.translation.z = current_pose_.position.z;
-    transform_stamped.transform.rotation = current_pose_.orientation;
-    tf_broadcaster_->sendTransform(transform_stamped);
-}
+// void DMAPLocalizer::broadcastTransform() {
+//     geometry_msgs::TransformStamped transform_stamped;
+//     transform_stamped.header.stamp = ros::Time::now();
+//     transform_stamped.header.frame_id = map_.header.frame_id;
+//     transform_stamped.child_frame_id = "map";
+//     transform_stamped.transform.translation.x = current_pose_.position.x;
+//     transform_stamped.transform.translation.y = current_pose_.position.y;
+//     transform_stamped.transform.translation.z = current_pose_.position.z;
+//     transform_stamped.transform.rotation = current_pose_.orientation;
+//     tf_broadcaster_->sendTransform(transform_stamped);
+// }
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "dmap_localizer");

@@ -25,6 +25,7 @@ private:
     tf2_ros::TransformListener tf_listener_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
+    ros::Timer icp_timer_;
     ros::Subscriber map_sub_;
     ros::Subscriber scan_sub_;
     ros::Subscriber initial_pose_sub_;
@@ -63,7 +64,7 @@ private:
     void convertScanToPointCloud(const sensor_msgs::LaserScan::ConstPtr& msg);
     void publishScanCloud();
     void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg);
-    void stepICP(const std_msgs::Empty::ConstPtr& msg);
+    void stepICP(const ros::TimerEvent& event);
     void performLocalization();
     void updatePose(const Eigen::Matrix4f& transformation);
     void publishPose();
