@@ -4,6 +4,10 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/registration/icp.h>
+#include <tf/transform_broadcaster.h>
+#include <tf/transform_listener.h>
+#include <tf/LinearMath/Matrix3x3.h>
+
 
 DMapLocalizer::DMapLocalizer()
 : initial_pose_received_(false),
@@ -120,6 +124,9 @@ void DMapLocalizer::alignScans()
         ROS_INFO_STREAM("ICP converged with fitness score: " << icp.getFitnessScore());
         ROS_INFO_STREAM("Transformation matrix:\n" << transformation);
 
+        // Broadcast the transform
+        broadcastTransform(transformation);
+
         sensor_msgs::PointCloud2 output;
         pcl::toROSMsg(aligned_cloud, output);
         output.header.frame_id = "map";
@@ -130,6 +137,22 @@ void DMapLocalizer::alignScans()
         ROS_WARN("ICP did not converge.");
     }
 }
+
+void DMapLocalizer::broadcastTransform(const Eigen::Matrix4f& transformation)
+{
+    tf::Transform tf_transform;
+    tf::Matrix3x3 rotation_matrix(
+        transformation(0, 0), transformation(0, 1), transformation(0, 2),
+        transformation(1, 0), transformation(1, 1), transformation(1, 2),
+        transformation(2, 0), transformation(2, 1), transformation(2, 2)
+    );
+
+    tf_transform.setBasis(rotation_matrix);
+    tf_transform.setOrigin(tf::Vector3(transformation(0, 3), transformation(1, 3), transformation(2, 3)));
+
+    br_.sendTransform(tf::StampedTransform(tf_transform, ros::Time::now(), "map", "odom"));
+}
+
 
 int main(int argc, char** argv)
 {
