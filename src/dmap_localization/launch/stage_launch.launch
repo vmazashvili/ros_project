@@ -1,4 +1,7 @@
 <launch>
+    <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" name="teleop" output="screen">
+        <remap from="cmd_vel" to="/cmd_vel"/>
+    </node>
 
 	<node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 map odom" />
 
@@ -14,5 +17,5 @@
     <node name="dmap_localizer" pkg="dmap_localization" type="dmap_localizer" output="screen" />
     
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find dmap_localization)/config/dmap_localization.rviz" />
+    
 </launch>
-

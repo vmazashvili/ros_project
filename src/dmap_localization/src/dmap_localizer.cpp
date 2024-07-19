@@ -43,7 +43,7 @@ void DMapLocalizer::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 
 void DMapLocalizer::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-  ROS_INFO("Received laser scan");
+  ROS_INFO("Received a laser scan with %ld ranges", msg->ranges.size());
   scan_cloud_->clear();
   for (size_t i = 0; i < msg->ranges.size(); ++i)
   {
@@ -69,6 +69,10 @@ void DMapLocalizer::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 
 void DMapLocalizer::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
+  ROS_INFO("Received odometry data with position (%f, %f) and orientation (%f)",
+    msg->pose.pose.position.x,
+    msg->pose.pose.position.y,
+    msg->pose.pose.orientation.z);
   current_odom_ = *msg;
 }
 
@@ -130,7 +134,14 @@ void DMapLocalizer::broadcastTransform(const geometry_msgs::PoseStamped& pose)
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "dmap_localizer");
+  ros::NodeHandle nh;
+
+  // Subscribe to laser scan and odometry topics
+  //ros::Subscriber laser_sub = nh.subscribe("/scan", 10, scanCallback);
+  //ros::Subscriber odom_sub = nh.subscribe("/odom", 10, odomCallback)
+  
   DMapLocalizer localizer;
   ros::spin();
+
   return 0;
 }
