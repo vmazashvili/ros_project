@@ -12,6 +12,7 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <std_msgs/Empty.h>
+#include "dmap_localization/dmap_generator.h"
 
 class DMAPLocalizer {
 public:
@@ -19,13 +20,16 @@ public:
     void run();
 
 private:
+    
+    DMAPGenerator dmap_generator_;
+
+
     // ROS
     ros::NodeHandle nh_;
     tf2_ros::Buffer tf_buffer_;
     tf2_ros::TransformListener tf_listener_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
-    ros::Timer icp_timer_;
     ros::Subscriber map_sub_;
     ros::Subscriber scan_sub_;
     ros::Subscriber initial_pose_sub_;
@@ -39,7 +43,7 @@ private:
     nav_msgs::OccupancyGrid map_;
     pcl::PointCloud<pcl::PointXYZ>::Ptr map_cloud_;
     pcl::PointCloud<pcl::PointXYZ>::Ptr dmap_cloud_;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr scan_cloud_;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr scan_cloud_; // Pointer to the point cloud
     geometry_msgs::Pose current_pose_;
     geometry_msgs::Pose initial_pose_;
 
@@ -64,12 +68,13 @@ private:
     void convertScanToPointCloud(const sensor_msgs::LaserScan::ConstPtr& msg);
     void publishScanCloud();
     void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg);
-    void stepICP(const ros::TimerEvent& event);
+    void stepICP(const std_msgs::Empty::ConstPtr& msg);
     void performLocalization();
     void updatePose(const Eigen::Matrix4f& transformation);
     void publishPose();
     void broadcastTransform();
     void manualScanProcessing();
+    void generatePointCloudFromPose(const geometry_msgs::Pose& pose);
 };
 
 #endif // DMAP_LOCALIZER_H
