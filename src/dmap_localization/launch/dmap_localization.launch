@@ -1,0 +1,3 @@
+<launch>
+	<node name="dmap_localization" pkg="dmap_localization" type="dmap_localization_node" output="screen" />
+</launch>
