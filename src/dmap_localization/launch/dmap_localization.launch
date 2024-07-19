@@ -1,8 +1,6 @@
 <launch>
   <!-- Launch the map server -->
-  <node name="map_server" pkg="map_server" type="map_server" output="screen">
+  <node name="map_server" pkg="map_server" type="map_server" args="$(find dmap_localization)/maps/your_map.yaml">
     <param name="frame_id" value="map"/>
-    <param name="filename" value="/home/vano/catkin_ws/src/dmap_localization/maps/your_map.yaml"/>
   </node>
 </launch>
-
