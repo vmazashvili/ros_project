@@ -28,7 +28,7 @@ private:
     private:
     double kernel_chi2 = 1.0;  // Or any appropriate value
     int inliers_min_ = 10;     // Or any appropriate value
-    float damping_ = 0.05f;    // Or any appropriate value
+    float damping_ = 0.1f;    // Or any appropriate value
 
 
     // ROS
@@ -45,6 +45,7 @@ private:
     ros::Publisher localized_pose_pub_;
     ros::Publisher dmap_cloud_pub_;
     ros::Publisher scan_cloud_pub_;
+    ros::Publisher correspondence_pub_;
 
     // Map and localization data
     nav_msgs::OccupancyGrid map_;

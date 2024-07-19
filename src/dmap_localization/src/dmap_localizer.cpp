@@ -29,6 +29,7 @@ void DMAPLocalizer::initializeROS() {
     //scan_sub_ = nh_.subscribe("/scan", 1, &DMAPLocalizer::scanCallback, this);
     initial_pose_sub_ = nh_.subscribe("/initialpose", 1, &DMAPLocalizer::initialPoseCallback, this);
     //step_icp_sub_ = nh_.subscribe("/step_icp", 1, &DMAPLocalizer::stepICP, this);
+    //correspondence_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("icp_correspondences", 1);
     
     localized_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("localized_pose", 1);
     dmap_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("dmap_cloud", 1);
@@ -40,7 +41,7 @@ void DMAPLocalizer::initializeROS() {
     nh_.param("dmap_threshold", dmap_threshold_, 0.8);
     nh_.param("icp_max_iterations", icp_max_iterations_, 100);
     nh_.param("icp_transformation_epsilon", icp_transformation_epsilon_, 1e-5);
-    nh_.param("icp_max_correspondence_distance", icp_max_correspondence_distance_, 1.0);
+    nh_.param("icp_max_correspondence_distance", icp_max_correspondence_distance_, 10.0);
 }
 
 void DMAPLocalizer::initializePCL() {
@@ -97,7 +98,7 @@ void DMAPLocalizer::generatePointCloudFromPose(const geometry_msgs::Pose& pose) 
     float pose_yaw = tf2::getYaw(pose.orientation);
 
     // Generate points in the point cloud
-    for (float angle = -M_PI; angle <= M_PI; angle += M_PI / 10000) { // 1-degree increments
+    for (float angle = -M_PI; angle <= M_PI; angle += M_PI / 180) { // 1-degree increments
         float global_angle = pose_yaw + angle;
 
         for (float range = min_range; range <= max_range; range += resolution) {
@@ -199,6 +200,7 @@ void DMAPLocalizer::performICP() {
             ROS_INFO("ICP converged after %d iterations", iteration + 1);
             break;
         }
+        //publishCorrespondences(X);
     }
 
     updatePose(X);
@@ -312,6 +314,46 @@ void DMAPLocalizer::publishPose() {
     localized_pose_pub_.publish(pose_msg);
 }
 
+// void DMAPLocalizer::publishCorrespondences(const Eigen::Isometry2f& pose) {
+//     visualization_msgs::MarkerArray marker_array;
+//     int id = 0;
+
+//     for (const auto& point : scan_cloud_->points) {
+//         Eigen::Vector2f m(point.x, point.y);
+//         Eigen::Vector2f p_world = pose * m;
+        
+//         float dmap_value;
+//         Eigen::Vector2f dmap_gradient;
+//         if (!getDMAPValueAndGradient(p_world, dmap_value, dmap_gradient)) {
+//             continue;
+//         }
+
+//         visualization_msgs::Marker line_marker;
+//         line_marker.header.frame_id = map_.header.frame_id;
+//         line_marker.header.stamp = ros::Time::now();
+//         line_marker.ns = "correspondences";
+//         line_marker.id = id++;
+//         line_marker.type = visualization_msgs::Marker::LINE_LIST;
+//         line_marker.action = visualization_msgs::Marker::ADD;
+//         line_marker.pose.orientation.w = 1.0;
+//         line_marker.scale.x = 0.01;  // Line width
+//         line_marker.color.r = 1.0;
+//         line_marker.color.a = 0.5;
+
+//         geometry_msgs::Point p1, p2;
+//         p1.x = p_world.x(); p1.y = p_world.y(); p1.z = 0;
+//         p2.x = p_world.x() - dmap_gradient.x() * dmap_value;
+//         p2.y = p_world.y() - dmap_gradient.y() * dmap_value;
+//         p2.z = 0;
+
+//         line_marker.points.push_back(p1);
+//         line_marker.points.push_back(p2);
+
+//         marker_array.markers.push_back(line_marker);
+//     }
+
+//     correspondence_pub_.publish(marker_array);
+// }
 
 /*****************************************************************************************************************/
 
