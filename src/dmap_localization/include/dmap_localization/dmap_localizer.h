@@ -21,6 +21,7 @@ private:
     void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
     void convertMapToPointCloud(const nav_msgs::OccupancyGrid::ConstPtr& map);
     void convertScanToPointCloud(const sensor_msgs::LaserScan::ConstPtr& scan);
+    void alignScans();
 
     ros::NodeHandle nh_;
     ros::Subscriber map_sub_;
@@ -28,8 +29,12 @@ private:
     ros::Subscriber scan_sub_;
     ros::Publisher point_cloud_pub_;
 
+    pcl::PointCloud<pcl::PointXYZ>::Ptr map_cloud_;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr scan_cloud_;
+
     geometry_msgs::Pose initial_pose_;
     bool initial_pose_received_;
+    bool map_received_;
 };
 
 #endif // DMAP_LOCALIZER_H
