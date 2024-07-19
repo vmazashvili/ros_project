@@ -6,6 +6,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <sensor_msgs/LaserScan.h>
+#include <geometry_msgs/Pose.h>
 
 class DMapLocalizer
 {
@@ -23,6 +24,9 @@ private:
     ros::Subscriber initial_pose_sub_;
     ros::Subscriber scan_sub_;
     ros::Publisher point_cloud_pub_;
+
+    geometry_msgs::Pose initial_pose_;
+    bool initial_pose_received_;
 };
 
 #endif // DMAP_LOCALIZER_H
