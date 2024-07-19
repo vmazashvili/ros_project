@@ -19,7 +19,7 @@ public:
 
 private:
 	const double MIN_POSE_CHANGE = 0.01;  // 1 cm
-    const double MIN_SCAN_INTERVAL = 0.1;  // 100 ms
+    const double MIN_SCAN_INTERVAL = 1.0;  // 1000 ms
 	ros::Time last_scan_time_;
 	bool poseChanged(const geometry_msgs::Pose& new_pose);
 	void checkAndCreateDMAP(const ros::TimerEvent&);
