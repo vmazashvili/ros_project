@@ -5,6 +5,7 @@
 #include <pcl/point_types.h>
 
 DMapLocalizer::DMapLocalizer()
+: initial_pose_received_(false)
 {
     map_sub_ = nh_.subscribe("/map", 1, &DMapLocalizer::mapCallback, this);
     initial_pose_sub_ = nh_.subscribe("/initialpose", 1, &DMapLocalizer::initialPoseCallback, this);
@@ -20,7 +21,16 @@ void DMapLocalizer::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 
 void DMapLocalizer::initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
 {
-    ROS_INFO("Initial pose received");
+    initial_pose_ = msg->pose.pose;
+    initial_pose_received_ = true;
+    ROS_INFO("Initial pose received: [x: %f, y: %f, z: %f, orientation: (x: %f, y: %f, z: %f, w: %f)]",
+             initial_pose_.position.x,
+             initial_pose_.position.y,
+             initial_pose_.position.z,
+             initial_pose_.orientation.x,
+             initial_pose_.orientation.y,
+             initial_pose_.orientation.z,
+             initial_pose_.orientation.w);
 }
 
 void DMapLocalizer::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
