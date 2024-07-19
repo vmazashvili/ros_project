@@ -33,5 +33,8 @@ include_directories(${EIGEN3_INCLUDE_DIRS})
 
 find_package(laser_geometry REQUIRED)
 
+add_executable(distance_map_generator src/distance_map_generator.cpp)
+target_link_libraries(distance_map_generator ${catkin_LIBRARIES})
+
 add_executable(laserscan_to_pointcloud src/laserscan_to_pointcloud.cpp)
 target_link_libraries(laserscan_to_pointcloud ${catkin_LIBRARIES} ${laser_geometry_LIBRARIES} ${EIGEN3_LIBRARIES})
