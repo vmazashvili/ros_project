@@ -7,6 +7,8 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/Pose.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 
 class DMapLocalizer
 {
@@ -18,6 +20,7 @@ private:
     void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg);
     void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
     void convertMapToPointCloud(const nav_msgs::OccupancyGrid::ConstPtr& map);
+    void convertScanToPointCloud(const sensor_msgs::LaserScan::ConstPtr& scan);
 
     ros::NodeHandle nh_;
     ros::Subscriber map_sub_;
