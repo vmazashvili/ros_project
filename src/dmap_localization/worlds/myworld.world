@@ -20,10 +20,10 @@ define rplidar ranger
 define erratic position
 (
 	size [0.350 0.350 0.250]
-	origin [-0.050 0.000 0.000 0.000]
+	origin [0.000 0.000 0.000 0.000]
 	gui_nose 1
 	drive "diff"
-	rplidar(pose [ 0.050 0.000 0.250 0.000 ])
+	rplidar(pose [ 0.000 0.000 0.250 0.000 ])
 )
 
 define floorplan model
