@@ -34,7 +34,6 @@ install(TARGETS dmap_localizer
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(DIRECTORY launch worlds config
+install(DIRECTORY launch worlds maps config
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
-

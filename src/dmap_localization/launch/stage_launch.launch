@@ -1,0 +1,18 @@
+<launch>
+
+	<node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 map odom" />
+
+    <arg name="map_file" default="$(find dmap_localization)/maps/simple_map.yaml"/>
+    <arg name="world_file" default="$(find dmap_localization)/worlds/myworld.world"/>
+
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+
+    <node name="stageros" pkg="stage_ros" type="stageros" args="$(arg world_file)">
+        <remap from="base_scan" to="scan"/>
+    </node>
+
+    <node name="dmap_localizer" pkg="dmap_localization" type="dmap_localizer" output="screen" />
+    
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find dmap_localization)/config/dmap_localization.rviz" />
+</launch>
+
