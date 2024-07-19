@@ -7,12 +7,14 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   nav_msgs
   tf
+  pcl_ros
+  pcl_conversions
 )
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES dmap_localization
-  CATKIN_DEPENDS roscpp std_msgs sensor_msgs nav_msgs tf
+  CATKIN_DEPENDS roscpp std_msgs sensor_msgs nav_msgs tf pcl_ros pcl_conversions
 )
 
 include_directories(
