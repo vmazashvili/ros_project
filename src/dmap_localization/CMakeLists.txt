@@ -10,6 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   pcl_ros
   pcl_conversions
+  OpenCV REQUIRED
+  visualization_msgs
 )
 
 catkin_package(
@@ -21,6 +23,7 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 add_executable(dmap_localizer src/dmap_localizer.cpp)
@@ -28,6 +31,7 @@ add_executable(dmap_localizer src/dmap_localizer.cpp)
 target_link_libraries(dmap_localizer
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
+  ${OpenCV_LIBS}
 )
 
 install(TARGETS dmap_localizer
