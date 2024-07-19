@@ -29,7 +29,9 @@ include_directories(
 add_executable(dmap_localizer 
   src/dmap_localizer.cpp
   src/dmap_generator.cpp
+  # src/custom_icp.cpp
 )
+
 
 # Specify libraries to link against
 target_link_libraries(dmap_localizer

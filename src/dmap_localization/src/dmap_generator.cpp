@@ -30,8 +30,10 @@ void DMAPGenerator::createDMAP() {
                 std::vector<float> distances;
                 kdtree.nearestKSearch(free_space_point, 1, indices, distances);
 
-                float distance = std::abs(free_space_point.x - obstacle_cloud->points[indices[0]].x) +
-                                 std::abs(free_space_point.y - obstacle_cloud->points[indices[0]].y);
+                float distance = std::sqrt(
+                                std::pow(free_space_point.x - obstacle_cloud->points[indices[0]].x, 2) +
+                                std::pow(free_space_point.y - obstacle_cloud->points[indices[0]].y, 2)
+);
 
                 free_space_point.z = distance;
                 dmap_cloud_->push_back(free_space_point);

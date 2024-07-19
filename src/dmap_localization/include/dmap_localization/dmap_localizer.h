@@ -13,6 +13,8 @@
 #include <pcl/point_types.h>
 #include <std_msgs/Empty.h>
 #include "dmap_localization/dmap_generator.h"
+#include <Eigen/SVD>
+#include <Eigen/Geometry>
 
 class DMAPLocalizer {
 public:
@@ -20,8 +22,13 @@ public:
     void run();
 
 private:
-    
+    pcl::KdTreeFLANN<pcl::PointXYZ> dmap_kdtree_;
+    bool getDMAPValueAndGradient(const Eigen::Vector2f& p_world, float& value, Eigen::Vector2f& gradient);    
     DMAPGenerator dmap_generator_;
+    private:
+    double kernel_chi2 = 1.0;  // Or any appropriate value
+    int inliers_min_ = 10;     // Or any appropriate value
+    float damping_ = 0.05f;    // Or any appropriate value
 
 
     // ROS
@@ -68,13 +75,17 @@ private:
     void convertScanToPointCloud(const sensor_msgs::LaserScan::ConstPtr& msg);
     void publishScanCloud();
     void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg);
-    void stepICP(const std_msgs::Empty::ConstPtr& msg);
+    //void stepICP(const std_msgs::Empty::ConstPtr& msg);
     void performLocalization();
-    void updatePose(const Eigen::Matrix4f& transformation);
-    void publishPose();
+    void updatePose(const Eigen::Isometry2f& transformation);    void publishPose();
     void broadcastTransform();
     void manualScanProcessing();
     void generatePointCloudFromPose(const geometry_msgs::Pose& pose);
+    void performICP();
+    Eigen::Matrix4f poseToMatrix(const geometry_msgs::Pose& pose);
+    Eigen::Isometry2f getInitialGuess();
+    bool isConverged(const Eigen::Matrix4f& current, const Eigen::Matrix4f& previous, double epsilon);
+
 };
 
 #endif // DMAP_LOCALIZER_H
