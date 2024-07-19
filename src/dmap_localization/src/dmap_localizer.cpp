@@ -4,6 +4,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <pcl/conversions.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 
 //#include <opencv2/opencv.hpp>
 
@@ -26,7 +27,8 @@ DMapLocalizer::DMapLocalizer()
 	map_sub_ = nh_.subscribe("/map", 1, &DMapLocalizer::mapCallback, this);    
 	scan_sub_ = nh_.subscribe("/scan", 1, &DMapLocalizer::scanCallback, this);
     odom_sub_ = nh_.subscribe("odom", 1, &DMapLocalizer::odomCallback, this);
-    initial_pose_sub_ = nh_.subscribe("/initialpose", 1, &DMapLocalizer::initialPoseCallback, this);
+    //initial_pose_sub_ = nh_.subscribe("/initialpose", 1, &DMapLocalizer::initialPoseCallback, this);
+    corrected_scan_cloud_.reset(new pcl::PointCloud<pcl::PointXYZ>); // Add this line
 
     localized_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("localized_pose", 1);
 	dmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("dmap", 1, true);  // The 'true' makes it a latched topic
@@ -223,48 +225,80 @@ void DMapLocalizer::createDMAPPointCloud()
 */
 void DMapLocalizer::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-	//Avoiding too frequent scans
-	ros::Time now = ros::Time::now();
-    if ((now - last_scan_time_).toSec() < MIN_SCAN_INTERVAL) {
-        return;  // Skip this scan if it's too soon
-    }
+    ROS_INFO("Received laser scan with %zu ranges", msg->ranges.size());
 
-    last_scan_time_ = now;
+    // Convert laser scan to point cloud
+    pcl::PointCloud<pcl::PointXYZ>::Ptr scan_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    //ROS_INFO("Received a laser scan with %ld ranges in frame %s", msg->ranges.size(), msg->header.frame_id.c_str()); //runs
-    scan_cloud_->clear();
     for (size_t i = 0; i < msg->ranges.size(); ++i) {
         if (std::isfinite(msg->ranges[i])) {
             float angle = msg->angle_min + i * msg->angle_increment;
             pcl::PointXYZ point;
             point.x = msg->ranges[i] * cos(angle);
             point.y = msg->ranges[i] * sin(angle);
-            point.z = 0;
-            scan_cloud_->push_back(point);
+            point.z = 0.0; // Assuming 2D laser scan
+            scan_cloud->push_back(point);
         }
     }
-    scan_cloud_->width = scan_cloud_->points.size();
-    scan_cloud_->height = 1;
-    scan_cloud_->is_dense = true;
 
-    // Convert to PointCloud2
-    sensor_msgs::PointCloud2 scan_cloud_msg;
-    pcl::toROSMsg(*scan_cloud_, scan_cloud_msg);
-    scan_cloud_msg.header.frame_id = "base_link"; // Adjust this frame_id to match your setup
-    scan_cloud_msg.header.stamp = ros::Time::now();
+    // Align scan with map using ICP
+    //Eigen::Matrix4f transform = alignScan(*scan_cloud);
 
-    // Publish the PointCloud2 message
-    scan_cloud_pub_.publish(scan_cloud_msg);
+    // Process the point cloud here, e.g., filtering, downsampling, etc.
+    // ...
+
+    // Publish the point cloud (optional)
+    sensor_msgs::PointCloud2 output;
+    pcl::toROSMsg(*scan_cloud, output);
+    output.header.frame_id = msg->header.frame_id;
+    scan_cloud_pub_.publish(output);
+    //publishPose(transform);
+}
 
 
-    //ROS_INFO("Created scan cloud with %ld points", scan_cloud_->points.size());
+// Eigen::Matrix4f DMapLocalizer::alignScan(const pcl::PointCloud<pcl::PointXYZ>& scan_cloud) {
+//     pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+//     icp.setInputSource(scan_cloud.makeShared());
+//     icp.setInputTarget(map_cloud_);
 
-    if (!dmap_cloud_->empty()) {
-        performLocalization();
-    } else {
-        ROS_WARN("DMAP cloud is empty, skipping localization"); //runs
+//     pcl::PointCloud<pcl::PointXYZ> aligned_cloud;
+//     icp.align(aligned_cloud);
+
+//     if (icp.hasConverged()) {
+//         ROS_INFO_STREAM("ICP converged with fitness score: " << icp.getFitnessScore());
+//         return icp.getFinalTransformation();
+//     } else {
+//         ROS_WARN("ICP did not converge.");
+    
+//     // Handle ICP failure (e.g., return identity matrix or previous transform)
+//     return Eigen::Matrix4f::Identity();
+//     }
+// }
+
+
+void DMapLocalizer::compensateLaserScan(const sensor_msgs::LaserScan::ConstPtr& msg)
+{
+    // Assuming linear velocity is in m/s and angular velocity in rad/s
+    double scan_time = msg->scan_time; // Total time for one scan
+    double angle_increment = msg->angle_increment;
+
+    for (size_t i = 0; i < msg->ranges.size(); ++i) {
+        double time_offset = (i * angle_increment) / msg->angle_increment;
+        double delta_x = velocity.linear.x * time_offset;
+        double delta_y = velocity.linear.y * time_offset;
+        double delta_theta = velocity.angular.z * time_offset;
+
+        // Correcting the position
+        float angle = msg->angle_min + i * angle_increment + delta_theta;
+        pcl::PointXYZ point;
+        point.x = (msg->ranges[i] * cos(angle)) + delta_x;
+        point.y = (msg->ranges[i] * sin(angle)) + delta_y;
+        point.z = 0;
+        corrected_scan_cloud_->push_back(point);
     }
 }
+
+
 
 /*
 - Updates the current odometry data `current_odom_` with the latest poition and orientation
@@ -274,15 +308,17 @@ void DMapLocalizer::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
     ROS_INFO("Received odometry data");
     current_odom_ = *msg;
+    velocity = msg->twist.twist; // Update the velocity
 }
 
-// I dont think I need this function anymore. performLocalization() sets initial pose by itself
-void DMapLocalizer::initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
-{
-    initial_pose_ = msg->pose.pose;
-    //initial_pose_set = true;
-    ROS_INFO("Initial pose set."); //runs only when I set an initial pose through RViz
-}
+
+// // I dont think I need this function anymore. performLocalization() sets initial pose by itself
+// void DMapLocalizer::initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
+// {
+//     initial_pose_ = msg->pose.pose;
+//     //initial_pose_set = true;
+//     ROS_INFO("Initial pose set."); //runs only when I set an initial pose through RViz
+// }
 
 /*
 - Alligns the `scan_cloud_` laser scan data with `map_cloud_` map data
@@ -352,8 +388,8 @@ void DMapLocalizer::performLocalization()
     }
 }
 
-const double MIN_POSE_CHANGE = 0.05;
-const double MIN_ORIENTATION_CHANGE = 0.05; // For checking orientation changes
+const double MIN_POSE_CHANGE = 0.5;
+const double MIN_ORIENTATION_CHANGE = 0.5; // For checking orientation changes
 
 bool DMapLocalizer::poseChanged(const geometry_msgs::Pose& new_pose)
 {
@@ -403,4 +439,6 @@ int main(int argc, char** argv)
     ros::spin();
     return 0;
 }
+
+
 

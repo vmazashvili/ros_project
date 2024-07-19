@@ -1,0 +1,15 @@
+<launch>
+  <!-- Stage simulator -->
+  <node pkg="stage_ros" type="stageros" name="stageros" args="$(find lidar_robot_sim)/worlds/simple_world.world">
+    <remap from="base_scan" to="scan"/>
+  </node>
+
+  <!-- Robot state publisher -->
+  <param name="robot_description" textfile="$(find lidar_robot_sim)/urdf/lidar_robot.urdf" />
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" />
+
+  <!-- RViz -->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find lidar_robot_sim)/rviz/lidar_robot_sim.rviz" />
+
+  <node pkg="lidar_robot_sim" type="laserscan_to_pointcloud" name="laserscan_to_pointcloud" output="screen" />
+</launch>
