@@ -1,0 +1,5 @@
+Edit the main file "dmap_localizer_test.cpp" in order to visualize:
+- dmap
+- obstacles
+- row and col derivatives
+- derivative magnitude (for this task also edit dmap_localizer.cpp)
