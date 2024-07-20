@@ -1,6 +1,20 @@
 # ROS Project
 
-This repository contains my ROS project for the Robot Programming class.
+This repository contains my ROS project for the Robot Programming class-DMAP Based Localization.
+
+**This is a placeholder description**
+
+DMAP localization refers to a type of localization technique in robotics that uses a distance map (DMAP) for determining the robot's position within a given environment. The distance map is a precomputed map where each cell contains the distance to the nearest obstacle.
+
+### Key Koncepts:
+1. Distance Map (DMAP):
+
+	* A grid map where each cell value represents the distance to the nearest obstacle.
+	* Useful for efficient collision checking and path planning.
+
+2. Localization:
+	* The process of determining the robot's position and orientation (pose) within the environment.
+	* Often involves matching sensor data (e.g., laser scans, LiDAR) to the map. 
 
 ## Installation
 
