@@ -9,6 +9,7 @@
 #include <geometry_msgs/Pose.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <tf/transform_broadcaster.h>
 
 class DMapLocalizer
 {
@@ -22,6 +23,7 @@ private:
     void convertMapToPointCloud(const nav_msgs::OccupancyGrid::ConstPtr& map);
     void convertScanToPointCloud(const sensor_msgs::LaserScan::ConstPtr& scan);
     void alignScans();
+    void broadcastTransform(const Eigen::Matrix4f& transformation);
 
     ros::NodeHandle nh_;
     ros::Subscriber map_sub_;
@@ -35,6 +37,7 @@ private:
     geometry_msgs::Pose initial_pose_;
     bool initial_pose_received_;
     bool map_received_;
+    tf::TransformBroadcaster br_;
 };
 
 #endif // DMAP_LOCALIZER_H
