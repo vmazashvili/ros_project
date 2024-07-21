@@ -4,7 +4,9 @@ project(dmap_localization)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
+  nav_msgs
   sensor_msgs
+  geometry_msgs
   nav_msgs
   tf
   pcl_ros
@@ -14,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES dmap_localization
-  CATKIN_DEPENDS roscpp std_msgs sensor_msgs nav_msgs tf pcl_ros pcl_conversions
+  CATKIN_DEPENDS roscpp nav_msgs sensor_msgs geometry_msgs pcl_ros pcl_conversions
 )
 
 include_directories(
@@ -26,5 +28,6 @@ add_executable(dmap_localizer src/dmap_localizer.cpp)
 
 target_link_libraries(dmap_localizer
   ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
 )
 
