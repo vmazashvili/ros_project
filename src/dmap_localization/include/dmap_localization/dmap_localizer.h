@@ -3,50 +3,38 @@
 
 #include <ros/ros.h>
 #include <nav_msgs/OccupancyGrid.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
-#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <tf/transform_broadcaster.h>
-#include <nav_msgs/Odometry.h>
+#include <tf2_ros/transform_listener.h>
 
 class DMapLocalizer
 {
 public:
-    DMapLocalizer();
-    void publishSimulatedOdometry();
+  DMapLocalizer();
 
 private:
-    void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
-    void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
-    void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg);
-    void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
-    void convertMapToPointCloud(const nav_msgs::OccupancyGrid::ConstPtr& map);
-    void convertScanToPointCloud(const sensor_msgs::LaserScan::ConstPtr& scan);
-    void alignScans();
-    void broadcastTransform(const Eigen::Matrix4f& transformation);
+  void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
+  void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
+  void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
+  void performLocalization();
+  void broadcastTransform(const geometry_msgs::PoseStamped& pose);
 
-    ros::NodeHandle nh_;
-    ros::Subscriber map_sub_;
-    ros::Subscriber initial_pose_sub_;
-    ros::Subscriber scan_sub_;
-    ros::Subscriber odom_sub_; // Changed to Subscriber
-    ros::Publisher point_cloud_pub_;
-    ros::Publisher odom_pub_;
-    
-    pcl::PointCloud<pcl::PointXYZ>::Ptr map_cloud_;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr scan_cloud_;
+  ros::NodeHandle nh_;
+  ros::Subscriber map_sub_;
+  ros::Subscriber scan_sub_;
+  ros::Subscriber odom_sub_;
+  ros::Publisher localized_pose_pub_;
 
-    geometry_msgs::Pose initial_pose_;
-    bool initial_pose_received_;
-    bool map_received_;
-    tf::TransformBroadcaster br_;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr map_cloud_;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr scan_cloud_;
 
-    geometry_msgs::Pose current_pose_;
-    ros::Time last_odom_time_;
+  nav_msgs::Odometry current_odom_;
+
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
 };
 
 #endif // DMAP_LOCALIZER_H
-
