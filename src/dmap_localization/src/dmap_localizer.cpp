@@ -19,8 +19,7 @@ DMapLocalizer::DMapLocalizer()
     : nh_("~"), tf_listener_(tf_buffer_), dmap_threshold_(0.5), map_frame_id_("map")
 {
 	nh_.param<std::string>("map_frame_id", map_frame_id_, "map");
-    map_sub_ = nh_.subscribe("map", 1, &DMapLocalizer::mapCallback, this);
-    scan_sub_ = nh_.subscribe("scan", 1, &DMapLocalizer::scanCallback, this);
+	map_sub_ = nh_.subscribe("/map", 1, &DMapLocalizer::mapCallback, this);    scan_sub_ = nh_.subscribe("scan", 1, &DMapLocalizer::scanCallback, this);
     odom_sub_ = nh_.subscribe("odom", 1, &DMapLocalizer::odomCallback, this);
     initial_pose_sub_ = nh_.subscribe("/initialpose", 1, &DMapLocalizer::initialPoseCallback, this);
 
@@ -184,8 +183,9 @@ void DMapLocalizer::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 
 void DMapLocalizer::initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg)
 {
-    ROS_INFO("Received initial pose");
     initial_pose_ = msg->pose.pose;
+    //initial_pose_set = true;
+    ROS_INFO("Initial pose set.");
 }
 
 /*

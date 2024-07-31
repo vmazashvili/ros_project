@@ -7,6 +7,8 @@
   <!-- Launch the dmap_localizer node -->
   <node name="dmap_localizer" pkg="dmap_localization" type="dmap_localizer" output="screen"/>
   
+  <node pkg="map_server" type="map_server" name="map_server" args="$(find dmap_localization)/maps/simple_map.yaml"/>
+  
   <!-- Launch RViz with the specified configuration -->
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find dmap_localization)/config/dmap_localization.rviz" required="true"/>
 </launch>
