@@ -16,16 +16,16 @@
     - `localized_pose` (estimated pose)
 */ 
 DMapLocalizer::DMapLocalizer()
-    : nh_("~"), tf_listener_(tf_buffer_), dmap_threshold_(0.5), map_frame_id_("map")
+    : nh_("~"), tf_listener_(tf_buffer_), dmap_threshold_(0.8), map_frame_id_("map")
 {
+	dmap_creation_timer_ = nh_.createTimer(ros::Duration(1.0), &DMapLocalizer::checkAndCreateDMAP, this);
 	nh_.param<std::string>("map_frame_id", map_frame_id_, "map");
 	map_sub_ = nh_.subscribe("/map", 1, &DMapLocalizer::mapCallback, this);    scan_sub_ = nh_.subscribe("scan", 1, &DMapLocalizer::scanCallback, this);
     odom_sub_ = nh_.subscribe("odom", 1, &DMapLocalizer::odomCallback, this);
     initial_pose_sub_ = nh_.subscribe("/initialpose", 1, &DMapLocalizer::initialPoseCallback, this);
 
     localized_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("localized_pose", 1);
-    dmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("dmap", 1);
-
+	dmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("dmap", 1, true);  // The 'true' makes it a latched topic
     dmap_cloud_.reset(new pcl::PointCloud<pcl::PointXYZ>);
     scan_cloud_.reset(new pcl::PointCloud<pcl::PointXYZ>);
 }
@@ -54,6 +54,24 @@ void DMapLocalizer::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
     createDMAP();
     ROS_INFO("DMAP created and published");
 }
+
+
+void DMapLocalizer::checkAndCreateDMAP(const ros::TimerEvent&)
+{
+	if (occupancy_grid_.empty()) {
+		ROS_WARN_THROTTLE(10, "Occupancy grid is empty. Waiting for map data...");
+		return;
+	}
+
+	if (dmap_.empty()) {
+		ROS_INFO("Creating DMAP...");
+		createDMAP();
+	} else {
+		// DMAP is already created, stop the timer
+		dmap_creation_timer_.stop();
+	}
+}
+
 
 void DMapLocalizer::createDMAP()
 {
@@ -90,7 +108,7 @@ void DMapLocalizer::createDMAP()
     nav_msgs::OccupancyGrid dmap_msg;
     dmap_msg.header.stamp = ros::Time::now();
 	dmap_msg.header.frame_id = map_frame_id_;
-    dmap_msg.header.frame_id = "map";
+    //dmap_msg.header.frame_id = "map";
     dmap_msg.info.resolution = map_resolution_;
     dmap_msg.info.width = occupancy_grid_[0].size();
     dmap_msg.info.height = occupancy_grid_.size();
