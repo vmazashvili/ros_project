@@ -19,7 +19,7 @@ define rplidar ranger
 
 define erratic position
 (
-	size [0.350 0.350 0.250]
+	size [0.500 0.500 0.500]
 	origin [0.000 0.000 0.000 0.000]
 	gui_nose 1
 	drive "diff"
@@ -51,9 +51,9 @@ interval_sim 100  # simulation timestep in milliseconds
 window
 (
 	size [ 600 600 ]
-	center [ 1.333 -0.527 ]
-	rotate [ 35.500 1.000 ]
-	scale 715.079
+	center [ 0.335 1.852 ]
+	rotate [ 71.000 85.000 ]
+	scale 250.631
 )
 
 # load an environment bitmap
@@ -62,7 +62,7 @@ floorplan
 	name "simple_map"
 	bitmap "../maps/simple_map.pgm"
 	size [12.000 12.000 1.000]
-	pose [ 6 6 0.000 0.000 ]
+	pose [ 6.000 6.000 0.000 0.000 ]
 )
 
 # throw in a robot
