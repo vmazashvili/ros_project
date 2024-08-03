@@ -18,9 +18,10 @@
 DMapLocalizer::DMapLocalizer()
     : nh_("~"), tf_listener_(tf_buffer_), dmap_threshold_(0.8), map_frame_id_("map")
 {
-	dmap_creation_timer_ = nh_.createTimer(ros::Duration(1.0), &DMapLocalizer::checkAndCreateDMAP, this);
+	dmap_creation_timer_ = nh_.createTimer(ros::Duration(1.0), &DMapLocalizer::checkAndCreateDMAP, this, false, false);
 	nh_.param<std::string>("map_frame_id", map_frame_id_, "map");
-	map_sub_ = nh_.subscribe("/map", 1, &DMapLocalizer::mapCallback, this);    scan_sub_ = nh_.subscribe("scan", 1, &DMapLocalizer::scanCallback, this);
+	map_sub_ = nh_.subscribe("/map", 1, &DMapLocalizer::mapCallback, this);    
+	scan_sub_ = nh_.subscribe("/scan", 1, &DMapLocalizer::scanCallback, this);
     odom_sub_ = nh_.subscribe("odom", 1, &DMapLocalizer::odomCallback, this);
     initial_pose_sub_ = nh_.subscribe("/initialpose", 1, &DMapLocalizer::initialPoseCallback, this);
 
@@ -45,14 +46,18 @@ void DMapLocalizer::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
     map_resolution_ = msg->info.resolution;
     map_origin_ = msg->info.origin.position;
 
+    // Resize and populate the occupancy grid
     occupancy_grid_.resize(msg->info.height, std::vector<int>(msg->info.width));
     for (unsigned int y = 0; y < msg->info.height; ++y) {
         for (unsigned int x = 0; x < msg->info.width; ++x) {
             occupancy_grid_[y][x] = msg->data[y * msg->info.width + x];
         }
     }
-    createDMAP();
-    ROS_INFO("DMAP created and published");
+
+    // Instead of directly calling createDMAP(), we use the timer to periodically call checkAndCreateDMAP()
+    if (!dmap_creation_timer_.hasStarted()) {
+        dmap_creation_timer_.start();
+    }
 }
 
 
@@ -67,8 +72,9 @@ void DMapLocalizer::checkAndCreateDMAP(const ros::TimerEvent&)
 		ROS_INFO("Creating DMAP...");
 		createDMAP();
 	} else {
-		// DMAP is already created, stop the timer
+		// DMAP already created, stop the timer
 		dmap_creation_timer_.stop();
+		ROS_INFO("DMAP created!");
 	}
 }
 
@@ -78,6 +84,7 @@ void DMapLocalizer::createDMAP()
     dmap_.resize(occupancy_grid_.size(), std::vector<float>(occupancy_grid_[0].size(), std::numeric_limits<float>::max()));
 
     // First pass: top-left to bottom-right
+	ROS_INFO("Creating DMAP: First pass: top-left to bottom-right.");
     for (size_t y = 0; y < occupancy_grid_.size(); ++y) {
         for (size_t x = 0; x < occupancy_grid_[y].size(); ++x) {
             if (occupancy_grid_[y][x] > 50) {
@@ -90,6 +97,7 @@ void DMapLocalizer::createDMAP()
     }
 
     // Second pass: bottom-right to top-left
+	ROS_INFO("Creating DMAP: Second pass: top-left to bottom-right.");
     for (int y = occupancy_grid_.size() - 1; y >= 0; --y) {
         for (int x = occupancy_grid_[y].size() - 1; x >= 0; --x) {
             if (y < occupancy_grid_.size() - 1) dmap_[y][x] = std::min(dmap_[y][x], dmap_[y+1][x] + 1);
@@ -98,6 +106,7 @@ void DMapLocalizer::createDMAP()
     }
 
     // Scale distances by map resolution
+	ROS_INFO("Creating DMAP: Scaling distances by map resolution.");
     for (auto& row : dmap_) {
         for (auto& cell : row) {
             cell *= map_resolution_;
@@ -105,6 +114,7 @@ void DMapLocalizer::createDMAP()
     }
 
     // Publish DMAP for visualization
+	ROS_INFO("Publishing DMAP");
     nav_msgs::OccupancyGrid dmap_msg;
     dmap_msg.header.stamp = ros::Time::now();
 	dmap_msg.header.frame_id = map_frame_id_;
@@ -136,6 +146,7 @@ void DMapLocalizer::createDMAP()
 
 void DMapLocalizer::createDMAPPointCloud()
 {
+	ROS_INFO("Generating DMAP point cloud ...");
     dmap_cloud_->clear();
     for (size_t y = 0; y < dmap_.size(); ++y) {
         for (size_t x = 0; x < dmap_[y].size(); ++x) {
@@ -164,7 +175,15 @@ void DMapLocalizer::createDMAPPointCloud()
 */
 void DMapLocalizer::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-    ROS_INFO("Received a laser scan with %ld ranges in frame %s", msg->ranges.size(), msg->header.frame_id.c_str());
+	//Avoiding too frequent scans
+	ros::Time now = ros::Time::now();
+    if ((now - last_scan_time_).toSec() < MIN_SCAN_INTERVAL) {
+        return;  // Skip this scan if it's too soon
+    }
+
+    last_scan_time_ = now;
+
+    //ROS_INFO("Received a laser scan with %ld ranges in frame %s", msg->ranges.size(), msg->header.frame_id.c_str());
     scan_cloud_->clear();
     for (size_t i = 0; i < msg->ranges.size(); ++i) {
         if (std::isfinite(msg->ranges[i])) {
@@ -180,7 +199,7 @@ void DMapLocalizer::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
     scan_cloud_->height = 1;
     scan_cloud_->is_dense = true;
 
-    ROS_INFO("Created scan cloud with %ld points", scan_cloud_->points.size());
+    //ROS_INFO("Created scan cloud with %ld points", scan_cloud_->points.size());
 
     if (!dmap_cloud_->empty()) {
         performLocalization();
@@ -255,12 +274,22 @@ void DMapLocalizer::performLocalization()
         localized_pose.pose.orientation.z = q.z();
         localized_pose.pose.orientation.w = q.w();
 
-        localized_pose_pub_.publish(localized_pose);
-        ROS_INFO("Published localized pose: x=%.2f, y=%.2f", localized_pose.pose.position.x, localized_pose.pose.position.y);
-        broadcastTransform(localized_pose);
+        if (poseChanged(localized_pose.pose)) {
+            localized_pose_pub_.publish(localized_pose);
+            ROS_INFO("Published localized pose: x=%.2f, y=%.2f", localized_pose.pose.position.x, localized_pose.pose.position.y);
+            broadcastTransform(localized_pose);
+            last_published_pose_ = localized_pose.pose;
+        }
     } else {
         ROS_WARN("ICP did not converge");
     }
+}
+
+bool DMapLocalizer::poseChanged(const geometry_msgs::Pose& new_pose)
+{
+    double dx = new_pose.position.x - last_published_pose_.position.x;
+    double dy = new_pose.position.y - last_published_pose_.position.y;
+    return (dx*dx + dy*dy) > (MIN_POSE_CHANGE * MIN_POSE_CHANGE);
 }
 
 /*

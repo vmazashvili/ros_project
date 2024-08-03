@@ -18,6 +18,10 @@ public:
     DMapLocalizer();
 
 private:
+	const double MIN_POSE_CHANGE = 0.01;  // 1 cm
+    const double MIN_SCAN_INTERVAL = 0.1;  // 100 ms
+	ros::Time last_scan_time_;
+	bool poseChanged(const geometry_msgs::Pose& new_pose);
 	void checkAndCreateDMAP(const ros::TimerEvent&);
     ros::Timer dmap_creation_timer_;
     void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
@@ -51,9 +55,10 @@ private:
     tf2_ros::TransformBroadcaster tf_broadcaster_;
 
     float map_resolution_;
+	geometry_msgs::Pose last_published_pose_;
     geometry_msgs::Point map_origin_;
     float dmap_threshold_;
-    std::string map_frame_id_;  // Add this line
+    std::string map_frame_id_; 
 };
 
 #endif // DMAP_LOCALIZER_H
