@@ -1,0 +1,6 @@
+image: simple_map.pgm
+resolution: 0.02 # Adjust this to match your map's resolution
+origin: [0.0, 0.0, 0.0]  # Adjust if needed
+occupied_thresh: 0.65
+free_thresh: 0.196
+negate: 0

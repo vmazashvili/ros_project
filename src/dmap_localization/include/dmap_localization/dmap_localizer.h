@@ -11,6 +11,8 @@
 #include <pcl/point_types.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+
 
 class DMapLocalizer
 {
@@ -18,9 +20,12 @@ public:
     DMapLocalizer();
 
 private:
+    
+    geometry_msgs::Twist velocity;
 	const double MIN_POSE_CHANGE = 0.01;  // 1 cm
-    const double MIN_SCAN_INTERVAL = 1.0;  // 1000 ms
+    const double MIN_SCAN_INTERVAL = 0.1;  // 100 ms
 	ros::Time last_scan_time_;
+    void compensateLaserScan(const sensor_msgs::LaserScan::ConstPtr& msg);
 	bool poseChanged(const geometry_msgs::Pose& new_pose);
 	void checkAndCreateDMAP(const ros::TimerEvent&);
     ros::Timer dmap_creation_timer_;
@@ -48,6 +53,7 @@ private:
     std::vector<std::vector<float>> dmap_;
     pcl::PointCloud<pcl::PointXYZ>::Ptr dmap_cloud_;
     pcl::PointCloud<pcl::PointXYZ>::Ptr scan_cloud_;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr corrected_scan_cloud_;
 
     nav_msgs::Odometry current_odom_;
     geometry_msgs::Pose initial_pose_;
@@ -61,6 +67,8 @@ private:
     geometry_msgs::Point map_origin_;
     float dmap_threshold_;
     std::string map_frame_id_; 
+    Eigen::Matrix4f alignScan(const pcl::PointCloud<pcl::PointXYZ>& scan_cloud);
+
 };
 
 #endif // DMAP_LOCALIZER_H

@@ -1,0 +1,55 @@
+define laserscanner ranger
+(
+  sensor
+  (
+    range [0.0 30.0]
+    fov 270.0
+    samples 270
+  )
+)
+
+define lidar_robot position
+(
+  size [0.35 0.35 0.25]
+  drive "diff"
+  laserscanner(pose [ 0.050 0.000 0.000 0.000 ])
+)
+
+define floorplan model
+(
+  color "gray30"
+  boundary 1
+
+  gui_nose 0
+  gui_grid 0
+  gui_outline 0
+  gripper_return 0
+  fiducial_return 0
+  laser_return 1
+)
+
+resolution 0.02
+interval_sim 100
+
+window
+(
+  size [ 600.000 700.000 ]
+  center [ 0.000 0.000 ]
+  rotate [ 0.000 0.000 ]
+  scale 60
+)
+
+floorplan
+(
+  name "simple_map"
+  bitmap "simple_map.pgm"
+  size [ 10.000 10.000 2.000 ]
+  pose [ 0.000 0.000 0.000 0.000 ]
+)
+
+lidar_robot
+(
+  pose [ 0.000 0.000 0.000 0.000 ]
+  name "lidar_robot"
+  color "blue"
+)
