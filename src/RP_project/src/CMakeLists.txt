@@ -1,2 +1,1 @@
-add_subdirectory(rp_base)
-add_subdirectory(rp_loc)
+/opt/ros/noetic/share/catkin/cmake/toplevel.cmake

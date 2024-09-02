@@ -1,5 +1,0 @@
-<launch>
-  <arg name="world_file" default="$(find simple_lidar_sim)/worlds/simple_world.world"/>
-  <node name="stage" pkg="stage_ros" type="stageros" args="$(arg world_file)" respawn="false" output="screen"/>
-</launch>
-
